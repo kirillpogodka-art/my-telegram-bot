@@ -93,8 +93,8 @@ def callback_faq(call):
     try: bot.delete_message(call.message.chat.id, call.message.message_id)
     except Exception: pass
     markup = types.InlineKeyboardMarkup(row_width=1)
-    video1_button = types.InlineKeyboardButton(text="Как зарегистрироваться 📺", https://youtu.be/-kwNwb_SXls?si=o9N61a_KW3FmMfUo")
-    video2_button = types.InlineKeyboardButton(text="Как делать задания 📺", https://youtu.be/U6aUUtqCQfU?si=iB-Wc15_NdXXJcg8")
+    video1_button = types.InlineKeyboardButton(text="Как зарегистрироваться 📺", url="https://youtu.be/-kwNwb_SXls?si=7o3ZooziWDYKs23p")
+    video2_button = types.InlineKeyboardButton(text="Как делать задания 📺", url="https://youtu.be/U6aUUtqCQfU?si=s63YKnjZsRIyUWHt")
     back_button = types.InlineKeyboardButton(text="⬅️ Назад в меню", callback_data="back_to_main")
     markup.add(video1_button, video2_button, back_button)
     name = call.from_user.first_name
