@@ -47,7 +47,7 @@ def get_main_menu_keyboard():
     markup = types.InlineKeyboardMarkup(row_width=1)
     site_button = types.InlineKeyboardButton(text="Начать зарабатывать 💰", url="https://taskpay.ru")
     # Добавлена ваша кнопка со ссылкой на ТГ-канал
-    channel_button = types.InlineKeyboardButton(text="♦️Мой ТГК с Советами♦️", url="https://t.me")
+    channel_button = types.InlineKeyboardButton(text="♦️Мой ТГК с Советами♦️", https://t.me/+YdiIQ74RknBmYmZi")
     faq_button = types.InlineKeyboardButton(text="F.A.Q. ❓", callback_data="open_faq")
     
     # Добавляем все три кнопки в меню по очереди
@@ -58,7 +58,7 @@ def get_main_menu_keyboard():
 def show_stats(message):
     if message.from_user.id == ADMIN_ID:
         count = get_users_count()
-        bot.send_message(message.chat.id, f"📊 **Статистика бота:**\nВсего уникальных пользователей: {count}\n\n💬 `/users` — посмотреть список текстом\n📁 `/getfile` — скачать файл базы данных")
+        bot.send_message(message.chat.d, f"📊 **Статистика бота:**\nВсего уникальных пользователей: {count}\n\n💬 `/users` — посмотреть список текстом\n📁 `/getfile` — скачать файл базы данных")
 
 @bot.message_handler(commands=['users'])
 def show_users_list(message):
