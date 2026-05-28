@@ -3,15 +3,14 @@ from telebot import types
 import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import threading
-import psycopg2
+import psycopg2  # Библиотека для работы с PostgreSQL
 import io
 import sys
 
-TOKEN = '8851515467:AAHDYxhPbtZgVYdYZglWUwRsIEz8GOjnDx0' 
+# БЕЗОПАСНОСТЬ: Данные теперь берутся из настроек (Environment Variables) хостинга Render
+TOKEN = os.environ.get('TELEGRAM_TOKEN')
+DB_URI = os.environ.get('DATABASE_URL')
 ADMIN_ID = 7048680111
-
-# Строка подключения к Supabase с отключенным SSL для совместимости с Render
-DB_URI = "postgresql://postgres:o8llCYjtDOIgRRWL@db.bjrwsrvvyeueawxwbstd.supabase.co:5432/postgres?sslmode=disable"
 
 bot = telebot.TeleBot(TOKEN)
 
@@ -53,6 +52,7 @@ def save_user_info(user_id, first_name, username):
         conn = psycopg2.connect(DB_URI)
         cursor = conn.cursor()
         
+        # ON CONFLICT DO NOTHING предотвращает дублирование пользователей
         cursor.execute("""
             INSERT INTO users (user_id, first_name, username)
             VALUES (%s, %s, %s)
@@ -73,7 +73,6 @@ def get_users_count():
         result = cursor.fetchone()
         cursor.close()
         conn.close()
-        # Исправлено: извлекаем число из кортежа safely
         return result[0] if result else 0
     except Exception as e:
         print(f"Ошибка при получении количества пользователей: {e}", file=sys.stderr)
@@ -120,10 +119,8 @@ def show_users_list(message):
             if len(users_data) > 4000:
                 for x in range(0, len(users_data), 4000):
                     bot.send_message(message.chat.id, f"👥 **Список пользователей (часть):**\n\n{users_data[x:x+4000]}")
-            else:
-                bot.send_message(message.chat.id, f"👥 **Список пользователей:**\n\n{users_data}")
         except Exception as e:
-            bot.send_message(message.chat.id, f"Ошибка при выводе списка: {e}")
+            print(f"Ошибка выгрузки списка: {e}")
 
 @bot.message_handler(commands=['getfile'])
 def send_db_file(message):
