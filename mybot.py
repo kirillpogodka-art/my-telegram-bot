@@ -47,7 +47,7 @@ def get_main_menu_keyboard():
     markup = types.InlineKeyboardMarkup(row_width=1)
     site_button = types.InlineKeyboardButton(text="Начать зарабатывать 💰", url="https://taskpay.ru")
     # Добавлена ваша кнопка со ссылкой на ТГ-канал
-    channel_button = types.InlineKeyboardButton(text="♦️Мой ТГК с Советами♦️", https://t.me/+YdiIQ74RknBmYmZi")
+    channel_button = types.InlineKeyboardButton(text="♦️Мой ТГК с Советами♦️", url="https://t.me/+YdiIQ74RknBmYmZi")
     faq_button = types.InlineKeyboardButton(text="F.A.Q. ❓", callback_data="open_faq")
     
     # Добавляем все три кнопки в меню по очереди
