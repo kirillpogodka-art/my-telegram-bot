@@ -3,13 +3,14 @@ from telebot import types
 import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import threading
-import psycopg2  # Библиотека для работы с PostgreSQL
+import psycopg2
 import io
+import sys
 
 TOKEN = '8851515467:AAELflDDkFhTzCmXzDSKKRsgUWKf1eOIsXk' 
 ADMIN_ID = 7048680111
 
-# Строка подключения к Supabase с добавленным параметром sslmode=disable против ошибок соединений
+# Строка подключения к Supabase с отключенным SSL для совместимости с Render
 DB_URI = "postgresql://postgres:o8llCYjtDOIgRRWL@db.bjrwsrvvyeueawxwbstd.supabase.co:5432/postgres?sslmode=disable"
 
 bot = telebot.TeleBot(TOKEN)
@@ -22,30 +23,36 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
         self.wfile.write(b"Bot is running")
 
 def run_health_server():
-    server = HTTPServer(('0.0.0.0', int(os.environ.get('PORT', 8080))), HealthCheckHandler)
-    server.serve_forever()
+    try:
+        server = HTTPServer(('0.0.0.0', int(os.environ.get('PORT', 8080))), HealthCheckHandler)
+        server.serve_forever()
+    except Exception as e:
+        print(f"Ошибка веб-сервера: {e}", file=sys.stderr)
 
 # Функция инициализации таблицы в базе данных
 def init_db():
-    conn = psycopg2.connect(DB_URI)
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            user_id BIGINT PRIMARY KEY,
-            first_name TEXT,
-            username TEXT
-        );
-    """)
-    conn.commit()
-    cursor.close()
-    conn.close()
+    try:
+        conn = psycopg2.connect(DB_URI)
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                user_id BIGINT PRIMARY KEY,
+                first_name TEXT,
+                username TEXT
+            );
+        """)
+        conn.commit()
+        cursor.close()
+        conn.close()
+        print("База данных успешно инициализирована.")
+    except Exception as e:
+        print(f"Критическая ошибка инициализации БД: {e}", file=sys.stderr)
 
 def save_user_info(user_id, first_name, username):
     try:
         conn = psycopg2.connect(DB_URI)
         cursor = conn.cursor()
         
-        # ON CONFLICT DO NOTHING предотвращает дублирование пользователей
         cursor.execute("""
             INSERT INTO users (user_id, first_name, username)
             VALUES (%s, %s, %s)
@@ -56,25 +63,26 @@ def save_user_info(user_id, first_name, username):
         cursor.close()
         conn.close()
     except Exception as e:
-        print(f"Ошибка при работе с БД: {e}")
+        print(f"Ошибка при сохранении пользователя: {e}", file=sys.stderr)
 
 def get_users_count():
     try:
         conn = psycopg2.connect(DB_URI)
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM users;")
-        count = cursor.fetchone()[0] # Исправлено: извлекаем число из кортежа напрямую
+        result = cursor.fetchone()
         cursor.close()
         conn.close()
-        return count
+        # Исправлено: извлекаем число из кортежа safely
+        return result[0] if result else 0
     except Exception as e:
-        print(f"Ошибка при получении количества: {e}")
+        print(f"Ошибка при получении количества пользователей: {e}", file=sys.stderr)
         return 0
 
 def get_main_menu_keyboard():
     markup = types.InlineKeyboardMarkup(row_width=1)
     site_button = types.InlineKeyboardButton(text="Начать зарабатывать 💰", url="https://taskpay.ru")
-    channel_button = types.InlineKeyboardButton(text="♦️Мой ТГК с Советами♦️", url="https://t.me/+YdiIQ74RknBmYmZi")
+    channel_button = types.InlineKeyboardButton(text="♦️Мой ТГК с Советами♦️", url="https://t.me")
     faq_button = types.InlineKeyboardButton(text="F.A.Q. ❓", callback_data="open_faq")
     markup.add(site_button, channel_button, faq_button)
     return markup
@@ -93,26 +101,29 @@ def show_users_list(message):
             bot.send_message(message.chat.id, "👥 Список пользователей пока пуст.")
             return
         
-        conn = psycopg2.connect(DB_URI)
-        cursor = conn.cursor()
-        cursor.execute("SELECT user_id, first_name, username FROM users;")
-        rows = cursor.fetchall()
-        cursor.close()
-        conn.close()
-        
-        users_list = []
-        for row in rows:
-            u_id, name, uname = row
-            username_str = f"@{uname}" if uname else "Нет юзернейма"
-            users_list.append(f"ID: {u_id} | Имя: {name} | Ссылка: {username_str}")
-        
-        users_data = "\n".join(users_list)
-        
-        if len(users_data) > 4000:
-            for x in range(0, len(users_data), 4000):
-                bot.send_message(message.chat.id, f"👥 **Список пользователей (часть):**\n\n{users_data[x:x+4000]}")
-        else:
-            bot.send_message(message.chat.id, f"👥 **Список пользователей:**\n\n{users_data}")
+        try:
+            conn = psycopg2.connect(DB_URI)
+            cursor = conn.cursor()
+            cursor.execute("SELECT user_id, first_name, username FROM users;")
+            rows = cursor.fetchall()
+            cursor.close()
+            conn.close()
+            
+            users_list = []
+            for row in rows:
+                u_id, name, uname = row
+                username_str = f"@{uname}" if uname else "Нет юзернейма"
+                users_list.append(f"ID: {u_id} | Имя: {name} | Ссылка: {username_str}")
+            
+            users_data = "\n".join(users_list)
+            
+            if len(users_data) > 4000:
+                for x in range(0, len(users_data), 4000):
+                    bot.send_message(message.chat.id, f"👥 **Список пользователей (часть):**\n\n{users_data[x:x+4000]}")
+            else:
+                bot.send_message(message.chat.id, f"👥 **Список пользователей:**\n\n{users_data}")
+        except Exception as e:
+            bot.send_message(message.chat.id, f"Ошибка при выводе списка: {e}")
 
 @bot.message_handler(commands=['getfile'])
 def send_db_file(message):
@@ -122,25 +133,27 @@ def send_db_file(message):
             bot.send_message(message.chat.id, "📁 База данных пуста.")
             return
         
-        conn = psycopg2.connect(DB_URI)
-        cursor = conn.cursor()
-        cursor.execute("SELECT user_id, first_name, username FROM users;")
-        rows = cursor.fetchall()
-        cursor.close()
-        conn.close()
-        
-        # Генерируем виртуальный файл в памяти для отправки в Telegram
-        file_buffer = io.BytesIO()
-        for row in rows:
-            u_id, name, uname = row
-            username_str = f"@{uname}" if uname else "Нет юзернейма"
-            line = f"ID: {u_id} | Имя: {name} | Ссылка: {username_str}\n"
-            file_buffer.write(line.encode('utf-8'))
-        
-        file_buffer.seek(0)
-        file_buffer.name = "users.txt"
-        
-        bot.send_document(message.chat.id, file_buffer, caption="📁 Полный файл базы данных пользователей (users.txt)")
+        try:
+            conn = psycopg2.connect(DB_URI)
+            cursor = conn.cursor()
+            cursor.execute("SELECT user_id, first_name, username FROM users;")
+            rows = cursor.fetchall()
+            cursor.close()
+            conn.close()
+            
+            file_buffer = io.BytesIO()
+            for row in rows:
+                u_id, name, uname = row
+                username_str = f"@{uname}" if uname else "Нет юзернейма"
+                line = f"ID: {u_id} | Имя: {name} | Ссылка: {username_str}\n"
+                file_buffer.write(line.encode('utf-8'))
+            
+            file_buffer.seek(0)
+            file_buffer.name = "users.txt"
+            
+            bot.send_document(message.chat.id, file_buffer, caption="📁 Полный файл базы данных пользователей (users.txt)")
+        except Exception as e:
+            bot.send_message(message.chat.id, f"Ошибка при генерации файла: {e}")
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
@@ -175,8 +188,7 @@ def callback_back_to_main(call):
     bot.answer_callback_query(call.id)
 
 if __name__ == '__main__':
-    # Автоматически создаем таблицу пользователей при первом запуске
+    print("Запуск бота...")
     init_db()
-    # Запуск веб-сервера для Render
     threading.Thread(target=run_health_server, daemon=True).start()
     bot.infinity_polling()
