@@ -7,7 +7,7 @@ import psycopg2
 import io
 import sys
 
-TOKEN = '8851515467:AAELflDDkFhTzCmXzDSKKRsgUWKf1eOIsXk' 
+TOKEN = '8851515467:AAHDYxhPbtZgVYdYZglWUwRsIEz8GOjnDx0' 
 ADMIN_ID = 7048680111
 
 # Строка подключения к Supabase с отключенным SSL для совместимости с Render
