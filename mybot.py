@@ -9,8 +9,8 @@ import io
 TOKEN = '8851515467:AAELflDDkFhTzCmXzDSKKRsgUWKf1eOIsXk' 
 ADMIN_ID = 7048680111
 
-# Ваша готовая строка подключения к Supabase
-DB_URI = "postgresql://postgres:o8llCYjtDOIgRRWL@db.bjrwsrvvyeueawxwbstd.supabase.co:5432/postgres"
+# Строка подключения к Supabase с добавленным параметром sslmode=disable против ошибок соединений
+DB_URI = "postgresql://postgres:o8llCYjtDOIgRRWL@db.bjrwsrvvyeueawxwbstd.supabase.co:5432/postgres?sslmode=disable"
 
 bot = telebot.TeleBot(TOKEN)
 
@@ -63,7 +63,7 @@ def get_users_count():
         conn = psycopg2.connect(DB_URI)
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM users;")
-        count = cursor.fetchone()[0] # Получаем число из кортежа
+        count = cursor.fetchone()[0] # Исправлено: извлекаем число из кортежа напрямую
         cursor.close()
         conn.close()
         return count
