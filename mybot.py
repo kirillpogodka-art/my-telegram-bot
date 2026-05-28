@@ -3,12 +3,16 @@ from telebot import types
 import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import threading
+import psycopg2  # Библиотека для работы с PostgreSQL
+import io
 
 TOKEN = '8851515467:AAELflDDkFhTzCmXzDSKKRsgUWKf1eOIsXk' 
 ADMIN_ID = 7048680111
 
+# Ваша готовая строка подключения к Supabase
+DB_URI = "postgresql://postgres:o8llCYjtDOIgRRWL@db.bjrwsrvvyeueawxwbstd.supabase.co:5432/postgres"
+
 bot = telebot.TeleBot(TOKEN)
-DB_FILE = 'users.txt'
 
 # Заглушка для веб-сервера Render
 class HealthCheckHandler(BaseHTTPRequestHandler):
@@ -21,36 +25,57 @@ def run_health_server():
     server = HTTPServer(('0.0.0.0', int(os.environ.get('PORT', 8080))), HealthCheckHandler)
     server.serve_forever()
 
+# Функция инициализации таблицы в базе данных
+def init_db():
+    conn = psycopg2.connect(DB_URI)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id BIGINT PRIMARY KEY,
+            first_name TEXT,
+            username TEXT
+        );
+    """)
+    conn.commit()
+    cursor.close()
+    conn.close()
+
 def save_user_info(user_id, first_name, username):
-    if not os.path.exists(DB_FILE):
-        with open(DB_FILE, 'w', encoding='utf-8') as f: pass
-    with open(DB_FILE, 'r', encoding='utf-8') as f:
-        lines = f.read().splitlines()
-    user_exists = False
-    for line in lines:
-        if line.startswith(f"ID: {user_id} |"):
-            user_exists = True
-            break
-    if not user_exists:
-        username_str = f"@{username}" if username else "Нет юзернейма"
-        new_line = f"ID: {user_id} | Имя: {first_name} | Ссылка: {username_str}\n"
-        with open(DB_FILE, 'a', encoding='utf-8') as f:
-            f.write(new_line)
+    try:
+        conn = psycopg2.connect(DB_URI)
+        cursor = conn.cursor()
+        
+        # ON CONFLICT DO NOTHING предотвращает дублирование пользователей
+        cursor.execute("""
+            INSERT INTO users (user_id, first_name, username)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (user_id) DO NOTHING;
+        """, (user_id, first_name, username))
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"Ошибка при работе с БД: {e}")
 
 def get_users_count():
-    if not os.path.exists(DB_FILE): return 0
-    with open(DB_FILE, 'r', encoding='utf-8') as f:
-        lines = f.read().splitlines()
-    return len(lines)
+    try:
+        conn = psycopg2.connect(DB_URI)
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM users;")
+        count = cursor.fetchone()[0] # Получаем число из кортежа
+        cursor.close()
+        conn.close()
+        return count
+    except Exception as e:
+        print(f"Ошибка при получении количества: {e}")
+        return 0
 
 def get_main_menu_keyboard():
     markup = types.InlineKeyboardMarkup(row_width=1)
     site_button = types.InlineKeyboardButton(text="Начать зарабатывать 💰", url="https://taskpay.ru")
-    # Добавлена ваша кнопка со ссылкой на ТГ-канал
-    channel_button = types.InlineKeyboardButton(text="♦️Мой ТГК с Советами♦️", url="https://t.me/+YdiIQ74RknBmYmZi")
+    channel_button = types.InlineKeyboardButton(text="♦️Мой ТГК с Советами♦️", url="https://t.me")
     faq_button = types.InlineKeyboardButton(text="F.A.Q. ❓", callback_data="open_faq")
-    
-    # Добавляем все три кнопки в меню по очереди
     markup.add(site_button, channel_button, faq_button)
     return markup
 
@@ -58,16 +83,31 @@ def get_main_menu_keyboard():
 def show_stats(message):
     if message.from_user.id == ADMIN_ID:
         count = get_users_count()
-        bot.send_message(message.chat.d, f"📊 **Статистика бота:**\nВсего уникальных пользователей: {count}\n\n💬 `/users` — посмотреть список текстом\n📁 `/getfile` — скачать файл базы данных")
+        bot.send_message(message.chat.id, f"📊 **Статистика бота:**\nВсего уникальных пользователей: {count}\n\n💬 `/users` — посмотреть список текстом\n📁 `/getfile` — скачать файл базы данных")
 
 @bot.message_handler(commands=['users'])
 def show_users_list(message):
     if message.from_user.id == ADMIN_ID:
-        if not os.path.exists(DB_FILE) or get_users_count() == 0:
+        count = get_users_count()
+        if count == 0:
             bot.send_message(message.chat.id, "👥 Список пользователей пока пуст.")
             return
-        with open(DB_FILE, 'r', encoding='utf-8') as f:
-            users_data = f.read()
+        
+        conn = psycopg2.connect(DB_URI)
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id, first_name, username FROM users;")
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        users_list = []
+        for row in rows:
+            u_id, name, uname = row
+            username_str = f"@{uname}" if uname else "Нет юзернейма"
+            users_list.append(f"ID: {u_id} | Имя: {name} | Ссылка: {username_str}")
+        
+        users_data = "\n".join(users_list)
+        
         if len(users_data) > 4000:
             for x in range(0, len(users_data), 4000):
                 bot.send_message(message.chat.id, f"👥 **Список пользователей (часть):**\n\n{users_data[x:x+4000]}")
@@ -77,11 +117,30 @@ def show_users_list(message):
 @bot.message_handler(commands=['getfile'])
 def send_db_file(message):
     if message.from_user.id == ADMIN_ID:
-        if not os.path.exists(DB_FILE) or get_users_count() == 0:
-            bot.send_message(message.chat.id, "📁 Файл базы данных пуст или еще не создан.")
+        count = get_users_count()
+        if count == 0:
+            bot.send_message(message.chat.id, "📁 База данных пуста.")
             return
-        with open(DB_FILE, 'rb') as f:
-            bot.send_document(message.chat.id, f, caption="📁 Полный файл базы данных пользователей (users.txt)")
+        
+        conn = psycopg2.connect(DB_URI)
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id, first_name, username FROM users;")
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        # Генерируем виртуальный файл в памяти для отправки в Telegram
+        file_buffer = io.BytesIO()
+        for row in rows:
+            u_id, name, uname = row
+            username_str = f"@{uname}" if uname else "Нет юзернейма"
+            line = f"ID: {u_id} | Имя: {name} | Ссылка: {username_str}\n"
+            file_buffer.write(line.encode('utf-8'))
+        
+        file_buffer.seek(0)
+        file_buffer.name = "users.txt"
+        
+        bot.send_document(message.chat.id, file_buffer, caption="📁 Полный файл базы данных пользователей (users.txt)")
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
@@ -97,8 +156,8 @@ def callback_faq(call):
     try: bot.delete_message(call.message.chat.id, call.message.message_id)
     except Exception: pass
     markup = types.InlineKeyboardMarkup(row_width=1)
-    video1_button = types.InlineKeyboardButton(text="Как зарегистрироваться 📺", url="https://youtu.be/-kwNwb_SXls?si=7o3ZooziWDYKs23p")
-    video2_button = types.InlineKeyboardButton(text="Как делать задания 📺", url="https://youtu.be/U6aUUtqCQfU?si=s63YKnjZsRIyUWHt")
+    video1_button = types.InlineKeyboardButton(text="Как зарегистрироваться 📺", url="https://youtu.be")
+    video2_button = types.InlineKeyboardButton(text="Как делать задания 📺", url="https://youtu.be")
     back_button = types.InlineKeyboardButton(text="⬅️ Назад в меню", callback_data="back_to_main")
     markup.add(video1_button, video2_button, back_button)
     name = call.from_user.first_name
@@ -116,6 +175,8 @@ def callback_back_to_main(call):
     bot.answer_callback_query(call.id)
 
 if __name__ == '__main__':
-    # Запуск веб-сервера в отдельном потоке для Render
+    # Автоматически создаем таблицу пользователей при первом запуске
+    init_db()
+    # Запуск веб-сервера для Render
     threading.Thread(target=run_health_server, daemon=True).start()
     bot.infinity_polling()
