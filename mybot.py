@@ -74,7 +74,7 @@ def get_users_count():
 def get_main_menu_keyboard():
     markup = types.InlineKeyboardMarkup(row_width=1)
     site_button = types.InlineKeyboardButton(text="Начать зарабатывать 💰", url="https://taskpay.ru")
-    channel_button = types.InlineKeyboardButton(text="♦️Мой ТГК с Советами♦️", url="https://t.me")
+    channel_button = types.InlineKeyboardButton(text="♦️Мой ТГК с Советами♦️", url="https://t.me/+YdiIQ74RknBmYmZi")
     faq_button = types.InlineKeyboardButton(text="F.A.Q. ❓", callback_data="open_faq")
     markup.add(site_button, channel_button, faq_button)
     return markup
