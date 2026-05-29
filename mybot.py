@@ -72,11 +72,12 @@ def get_users_count():
         result = cursor.fetchone()
         cursor.close()
         conn.close()
-        # ИСПРАВЛЕНО: Забираем именно число (первый элемент кортежа)
+        # Возвращаем именно первый элемент (число), а не кортеж целиком
         return result[0] if result else 0
     except Exception as e:
         print(f"Ошибка при получении количества пользователей: {e}", file=sys.stderr)
         return 0
+
 
 def get_main_menu_keyboard():
     markup = types.InlineKeyboardMarkup(row_width=1)
