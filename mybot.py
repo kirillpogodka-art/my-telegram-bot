@@ -72,12 +72,11 @@ def get_users_count():
         result = cursor.fetchone()
         cursor.close()
         conn.close()
-        # Возвращаем именно первый элемент (число), а не кортеж целиком
+        # ИСПРАВЛЕНО: Извлекаем именно число (нулевой индекс кортежа)
         return result[0] if result else 0
     except Exception as e:
         print(f"Ошибка при получении количества пользователей: {e}", file=sys.stderr)
         return 0
-
 
 def get_main_menu_keyboard():
     markup = types.InlineKeyboardMarkup(row_width=1)
@@ -150,8 +149,12 @@ def send_db_file(message):
             
             file_buffer.seek(0)
             
-            input_file = telebot.types.InputFile(file_buffer, filename="users.txt")
-            bot.send_document(message.chat.id, input_file, caption="📁 Полный файл базы данных пользователей")
+            # Для pyTelegramBotAPI передаем кортеж (имя_файла, объект_io, тип)
+            bot.send_document(
+                message.chat.id, 
+                document=("users.txt", file_buffer, "text/plain"), 
+                caption="📁 Полный файл базы данных пользователей"
+            )
         except Exception as e:
             bot.send_message(message.chat.id, f"Ошибка при генерации файла: {e}")
 
