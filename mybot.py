@@ -1,34 +1,37 @@
 import telebot
 from telebot import types
 import os
-import psycopg2
+import psycopg2  # Библиотека для работы с PostgreSQL
 import io
 import sys
 import threading
 from flask import Flask
 from dotenv import load_dotenv
 
-load_dotenv()
-
 # Загружаем переменные из .env файла (если запускаем на ПК)
 load_dotenv()
 
-# МЫ ПОЛНОСТЬЮ УБРАЛИ os.environ ДЛЯ БАЗЫ ДАННЫХ
+# БЕЗОПАСНОСТЬ: Токен берётся из панели Render
 TOKEN = os.environ.get('TELEGRAM_TOKEN')
-DB_URI = "postgresql://postgres.bjrwsrvvyeueawxwbstd:o8llCYjtDOIgRRWL@://supabase.com"
 ADMIN_ID = 7048680111
+
+# ЖЁСТКАЯ СТРОКА ПОДКЛЮЧЕНИЯ К SUPABASE IPV4 POOLER (ПОРТ 6543)
+DB_URI = "postgresql://postgres.bjrwsrvvyeueawxwbstd:o8llCYjtDOIgRRWL@://supabase.com"
 
 bot = telebot.TeleBot(TOKEN)
 app = Flask('')
 
+# Простой веб-интерфейс, чтобы Render видел открытый порт и не закрывал приложение
 @app.route('/')
 def home():
-    return "Бот работает стабильно!"
+    return "Бот успешно запущен и работает в бесплатном режиме Web Service!"
 
 def run_web_server():
     port = int(os.environ.get("PORT", 8080))
-    app.run(host='0.0.0.0', port=port)
+    # ВЫКЛЮЧЕН use_reloader, чтобы Flask не создавал дублирующий поток бота
+    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
 
+# Функция инициализации таблицы в базе данных
 def init_db():
     try:
         conn = psycopg2.connect(DB_URI)
@@ -51,11 +54,13 @@ def save_user_info(user_id, first_name, username):
     try:
         conn = psycopg2.connect(DB_URI)
         cursor = conn.cursor()
+        
         cursor.execute("""
             INSERT INTO users (user_id, first_name, username)
             VALUES (%s, %s, %s)
             ON CONFLICT (user_id) DO NOTHING;
         """, (user_id, first_name, username))
+        
         conn.commit()
         cursor.close()
         conn.close()
@@ -71,9 +76,9 @@ def get_users_count():
         cursor.close()
         conn.close()
         
-        # Исправлено: берем строго ПЕРВЫЙ элемент кортежа result[0]
+        # Гарантированно забираем чистое число (первый элемент кортежа)
         if result and len(result) > 0:
-            return result[0]
+            return int(result[0])
         return 0
     except Exception as e:
         print(f"Ошибка при получении количества пользователей: {e}", file=sys.stderr)
@@ -90,20 +95,8 @@ def get_main_menu_keyboard():
 @bot.message_handler(commands=['stats'])
 def show_stats(message):
     if message.from_user.id == ADMIN_ID:
-        try:
-            conn = psycopg2.connect(DB_URI)
-            cursor = conn.cursor()
-            # Берем вообще всё, что есть в таблице
-            cursor.execute("SELECT * FROM users;")
-            rows = cursor.fetchall()
-            cursor.close()
-            conn.close()
-            
-            # Бот напрямую скажет, сколько строк он РЕАЛЬНО увидел
-            real_count = len(rows)
-            bot.send_message(message.chat.id, f"📊 **Прямой тест БД:**\nНайдено строк в таблице: {real_count}\n\nСырые данные из базы:\n{str(rows)}")
-        except Exception as e:
-            bot.send_message(message.chat.id, f"❌ **Критическая ошибка подключения к Supabase:**\n{e}")
+        count = get_users_count()
+        bot.send_message(message.chat.id, f"📊 **Статистика бота:**\nВсего уникальных пользователей: {count}\n\n💬 `/users` — посмотреть список текстом\n📁 `/getfile` — скачать файл базы данных")
 
 @bot.message_handler(commands=['users'])
 def show_users_list(message):
@@ -162,7 +155,7 @@ def send_db_file(message):
             
             file_buffer.seek(0)
             
-            # Для pyTelegramBotAPI используем безопасную передачу через кортеж
+            # Безопасная отправка файла через кортеж для pyTelegramBotAPI
             bot.send_document(
                 message.chat.id, 
                 document=("users.txt", file_buffer, "text/plain"), 
@@ -204,13 +197,21 @@ def callback_back_to_main(call):
     bot.answer_callback_query(call.id)
 
 if __name__ == '__main__':
+    # 1. Сначала инициализируем базу данных
     init_db()
     
+    # 2. Запускаем Flask веб-сервер в фоновом потоке без перезапусков-дублей
+    print("Запуск фонового веб-сервера для прохождения проверок Render...")
     server_thread = threading.Thread(target=run_web_server)
     server_thread.daemon = True
     server_thread.start()
     
-    try: bot.remove_webhook()
-    except Exception: pass
+    # 3. Сбрасываем старые вебхуки Telegram
+    try:
+        bot.remove_webhook()
+    except Exception:
+        pass
         
+    # 4. В основном потоке запускаем постоянное прослушивание Telegram
+    print("Бот успешно запущен и готов принимать команды!")
     bot.infinity_polling()
