@@ -1,17 +1,15 @@
 import telebot
 from telebot import types
 import os
-import psycopg2  # Библиотека для работы с PostgreSQL
+import psycopg2
 import io
 import sys
 import threading
 from flask import Flask
 from dotenv import load_dotenv
 
-# Загружаем переменные из .env файла (если запускаем на ПК)
 load_dotenv()
 
-# БЕЗОПАСНОСТЬ: Данные берутся из настроек панели Render или локального файла .env
 TOKEN = os.environ.get('TELEGRAM_TOKEN')
 DB_URI = os.environ.get('DATABASE_URL')
 ADMIN_ID = 7048680111
@@ -19,16 +17,14 @@ ADMIN_ID = 7048680111
 bot = telebot.TeleBot(TOKEN)
 app = Flask('')
 
-# Простой веб-интерфейс, чтобы Render видел открытый порт и не закрывал приложение
 @app.route('/')
 def home():
-    return "Бот успешно запущен и работает в бесплатном режиме Web Service!"
+    return "Бот работает!"
 
 def run_web_server():
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
-# Функция инициализации таблицы в базе данных
 def init_db():
     try:
         conn = psycopg2.connect(DB_URI)
@@ -51,13 +47,11 @@ def save_user_info(user_id, first_name, username):
     try:
         conn = psycopg2.connect(DB_URI)
         cursor = conn.cursor()
-        
         cursor.execute("""
             INSERT INTO users (user_id, first_name, username)
             VALUES (%s, %s, %s)
             ON CONFLICT (user_id) DO NOTHING;
         """, (user_id, first_name, username))
-        
         conn.commit()
         cursor.close()
         conn.close()
@@ -72,7 +66,7 @@ def get_users_count():
         result = cursor.fetchone()
         cursor.close()
         conn.close()
-        # ИСПРАВЛЕНО: Извлекаем именно число (нулевой индекс кортежа)
+        # ИСПРАВЛЕНО: жестко забираем первый элемент кортежа (индекс 0)
         return result[0] if result else 0
     except Exception as e:
         print(f"Ошибка при получении количества пользователей: {e}", file=sys.stderr)
@@ -149,7 +143,6 @@ def send_db_file(message):
             
             file_buffer.seek(0)
             
-            # Для pyTelegramBotAPI передаем кортеж (имя_файла, объект_io, тип)
             bot.send_document(
                 message.chat.id, 
                 document=("users.txt", file_buffer, "text/plain"), 
@@ -191,13 +184,8 @@ def callback_back_to_main(call):
     bot.answer_callback_query(call.id)
 
 if __name__ == '__main__':
-    print("Инициализация базы данных...")
     init_db()
-    
-    print("Запуск фонового веб-сервера...")
     server_thread = threading.Thread(target=run_web_server)
     server_thread.daemon = True
     server_thread.start()
-    
-    print("Бот успешно запущен и готов принимать команды!")
     bot.infinity_polling()
