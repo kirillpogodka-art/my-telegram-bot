@@ -1,32 +1,16 @@
 import telebot
 from telebot import types
 import os
-from http.server import BaseHTTPRequestHandler, HTTPServer
-import threading
 import psycopg2  # Библиотека для работы с PostgreSQL
 import io
 import sys
 
-# БЕЗОПАСНОСТЬ: Данные теперь берутся из настроек (Environment Variables) хостинга Render
+# БЕЗОПАСНОСТЬ: Данные берутся из настроек (Environment Variables) хостинга Render
 TOKEN = os.environ.get('TELEGRAM_TOKEN')
 DB_URI = os.environ.get('DATABASE_URL')
 ADMIN_ID = 7048680111
 
 bot = telebot.TeleBot(TOKEN)
-
-# Заглушка для веб-сервера Render
-class HealthCheckHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"Bot is running")
-
-def run_health_server():
-    try:
-        server = HTTPServer(('0.0.0.0', int(os.environ.get('PORT', 8080))), HealthCheckHandler)
-        server.serve_forever()
-    except Exception as e:
-        print(f"Ошибка веб-сервера: {e}", file=sys.stderr)
 
 # Функция инициализации таблицы в базе данных
 def init_db():
@@ -52,7 +36,6 @@ def save_user_info(user_id, first_name, username):
         conn = psycopg2.connect(DB_URI)
         cursor = conn.cursor()
         
-        # ON CONFLICT DO NOTHING предотвращает дублирование пользователей
         cursor.execute("""
             INSERT INTO users (user_id, first_name, username)
             VALUES (%s, %s, %s)
@@ -119,6 +102,8 @@ def show_users_list(message):
             if len(users_data) > 4000:
                 for x in range(0, len(users_data), 4000):
                     bot.send_message(message.chat.id, f"👥 **Список пользователей (часть):**\n\n{users_data[x:x+4000]}")
+            else:
+                bot.send_message(message.chat.id, f"👥 **Список пользователей:**\n\n{users_data}")
         except Exception as e:
             print(f"Ошибка выгрузки списка: {e}")
 
@@ -185,7 +170,6 @@ def callback_back_to_main(call):
     bot.answer_callback_query(call.id)
 
 if __name__ == '__main__':
-    print("Запуск бота...")
+    print("Запуск бота без лишних веб-серверов...")
     init_db()
-    threading.Thread(target=run_health_server, daemon=True).start()
     bot.infinity_polling()
