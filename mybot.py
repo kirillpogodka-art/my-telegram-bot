@@ -86,8 +86,20 @@ def get_main_menu_keyboard():
 @bot.message_handler(commands=['stats'])
 def show_stats(message):
     if message.from_user.id == ADMIN_ID:
-        count = get_users_count()
-        bot.send_message(message.chat.id, f"📊 **Статистика бота:**\nВсего уникальных пользователей: {count}\n\n💬 `/users` — посмотреть список текстом\n📁 `/getfile` — скачать файл базы данных")
+        try:
+            conn = psycopg2.connect(DB_URI)
+            cursor = conn.cursor()
+            # Берем вообще всё, что есть в таблице
+            cursor.execute("SELECT * FROM users;")
+            rows = cursor.fetchall()
+            cursor.close()
+            conn.close()
+            
+            # Бот напрямую скажет, сколько строк он РЕАЛЬНО увидел
+            real_count = len(rows)
+            bot.send_message(message.chat.id, f"📊 **Прямой тест БД:**\nНайдено строк в таблице: {real_count}\n\nСырые данные из базы:\n{str(rows)}")
+        except Exception as e:
+            bot.send_message(message.chat.id, f"❌ **Критическая ошибка подключения к Supabase:**\n{e}")
 
 @bot.message_handler(commands=['users'])
 def show_users_list(message):
