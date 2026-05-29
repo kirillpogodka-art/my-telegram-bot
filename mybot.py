@@ -4,13 +4,30 @@ import os
 import psycopg2  # Библиотека для работы с PostgreSQL
 import io
 import sys
+import threading
+from flask import Flask
+from dotenv import load_dotenv
 
-# БЕЗОПАСНОСТЬ: Данные берутся из настроек (Environment Variables) хостинга Render
+# Загружаем переменные из .env файла (если запускаем на ПК)
+load_dotenv()
+
+# БЕЗОПАСНОСТЬ: Данные берутся из настроек панели Render или локального файла .env
 TOKEN = os.environ.get('TELEGRAM_TOKEN')
 DB_URI = os.environ.get('DATABASE_URL')
 ADMIN_ID = 7048680111
 
 bot = telebot.TeleBot(TOKEN)
+app = Flask('')
+
+# Простой веб-интерфейс, чтобы Render видел открытый порт и не закрывал приложение
+@app.route('/')
+def home():
+    return "Бот успешно запущен и работает в бесплатном режиме Web Service!"
+
+def run_web_server():
+    # Render автоматически передает нужный порт в переменную среды PORT
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
 
 # Функция инициализации таблицы в базе данных
 def init_db():
@@ -170,6 +187,15 @@ def callback_back_to_main(call):
     bot.answer_callback_query(call.id)
 
 if __name__ == '__main__':
-    print("Запуск бота без лишних веб-серверов...")
+    print("Инициализация базы данных...")
     init_db()
+    
+    # 1. Запускаем Flask веб-сервер в фоновом потоке, чтобы Render не ругался на порты
+    print("Запуск фонового веб-сервера для прохождения проверок Render...")
+    server_thread = threading.Thread(target=run_web_server)
+    server_thread.daemon = True
+    server_thread.start()
+    
+    # 2. В основном потоке запускаем постоянное прослушивание Telegram
+    print("Бот успешно запущен и готов принимать команды!")
     bot.infinity_polling()
