@@ -76,13 +76,13 @@ def get_users_count():
         cursor.close()
         conn.close()
         
-        # Гарантированно забираем чистое число (первый элемент кортежа)
+        # ТОЧНОЕ ИСПРАВЛЕНИЕ: Извлекаем первый элемент кортежа по индексу [0]
         if result and len(result) > 0:
             return int(result[0])
         return 0
     except Exception as e:
         print(f"Ошибка при получении количества пользователей: {e}", file=sys.stderr)
-        return 0
+        return -1
 
 def get_main_menu_keyboard():
     markup = types.InlineKeyboardMarkup(row_width=1)
@@ -96,12 +96,18 @@ def get_main_menu_keyboard():
 def show_stats(message):
     if message.from_user.id == ADMIN_ID:
         count = get_users_count()
+        if count == -1:
+            bot.send_message(message.chat.id, "❌ Ошибка при запросе к базе данных.")
+            return
         bot.send_message(message.chat.id, f"📊 **Статистика бота:**\nВсего уникальных пользователей: {count}\n\n💬 `/users` — посмотреть список текстом\n📁 `/getfile` — скачать файл базы данных")
 
 @bot.message_handler(commands=['users'])
 def show_users_list(message):
     if message.from_user.id == ADMIN_ID:
         count = get_users_count()
+        if count == -1:
+            bot.send_message(message.chat.id, "❌ Ошибка при выполнении запроса.")
+            return
         if count == 0:
             bot.send_message(message.chat.id, "👥 Список пользователей пока пуст.")
             return
@@ -128,12 +134,15 @@ def show_users_list(message):
             else:
                 bot.send_message(message.chat.id, f"👥 **Список пользователей:**\n\n{users_data}")
         except Exception as e:
-            print(f"Ошибка выгрузки списка: {e}")
+            bot.send_message(message.chat.id, f"❌ Ошибка выгрузки списка: {e}")
 
 @bot.message_handler(commands=['getfile'])
 def send_db_file(message):
     if message.from_user.id == ADMIN_ID:
         count = get_users_count()
+        if count == -1:
+            bot.send_message(message.chat.id, "❌ Ошибка при выполнении запроса.")
+            return
         if count == 0:
             bot.send_message(message.chat.id, "📁 База данных пуста.")
             return
@@ -155,7 +164,6 @@ def send_db_file(message):
             
             file_buffer.seek(0)
             
-            # Безопасная отправка файла через кортеж для pyTelegramBotAPI
             bot.send_document(
                 message.chat.id, 
                 document=("users.txt", file_buffer, "text/plain"), 
@@ -197,21 +205,15 @@ def callback_back_to_main(call):
     bot.answer_callback_query(call.id)
 
 if __name__ == '__main__':
-    # 1. Сначала инициализируем базу данных
     init_db()
     
-    # 2. Запускаем Flask веб-сервер в фоновом потоке без перезапусков-дублей
-    print("Запуск фонового веб-сервера для прохождения проверок Render...")
     server_thread = threading.Thread(target=run_web_server)
     server_thread.daemon = True
     server_thread.start()
     
-    # 3. Сбрасываем старые вебхуки Telegram
     try:
         bot.remove_webhook()
     except Exception:
         pass
         
-    # 4. В основном потоке запускаем постоянное прослушивание Telegram
-    print("Бот успешно запущен и готов принимать команды!")
     bot.infinity_polling()
