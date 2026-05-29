@@ -4,6 +4,20 @@ import os
 import psycopg2
 import io
 import sys
+import threading
+from flask import Flask
+
+# Настройка Flask-сервера для "подпинываний" от Cron-job
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Бот активен и работает!", 200
+
+def run_flask():
+    # Render автоматически назначает порт в переменную окружения PORT
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
 
 # БЕЗОПАСНОСТЬ: Чистый забор переменных из панели хостинга
 TOKEN = os.environ.get('TELEGRAM_TOKEN')
@@ -14,7 +28,13 @@ bot = telebot.TeleBot(TOKEN)
 
 def init_db():
     try:
-        conn = psycopg2.connect(DB_URI)
+        # Для Neon часто критически важен SSL-режим
+        if DB_URI and "sslmode" not in DB_URI:
+            connect_uri = f"{DB_URI}?sslmode=require"
+        else:
+            connect_uri = DB_URI
+
+        conn = psycopg2.connect(connect_uri)
         cursor = conn.cursor()
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
@@ -32,7 +52,8 @@ def init_db():
 
 def save_user_info(user_id, first_name, username):
     try:
-        conn = psycopg2.connect(DB_URI)
+        connect_uri = f"{DB_URI}?sslmode=require" if DB_URI and "sslmode" not in DB_URI else DB_URI
+        conn = psycopg2.connect(connect_uri)
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO users (user_id, first_name, username)
@@ -47,7 +68,8 @@ def save_user_info(user_id, first_name, username):
 
 def get_users_count():
     try:
-        conn = psycopg2.connect(DB_URI)
+        connect_uri = f"{DB_URI}?sslmode=require" if DB_URI and "sslmode" not in DB_URI else DB_URI
+        conn = psycopg2.connect(connect_uri)
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM users;")
         result = cursor.fetchone()
@@ -87,7 +109,8 @@ def show_users_list(message):
             return
         
         try:
-            conn = psycopg2.connect(DB_URI)
+            connect_uri = f"{DB_URI}?sslmode=require" if DB_URI and "sslmode" not in DB_URI else DB_URI
+            conn = psycopg2.connect(connect_uri)
             cursor = conn.cursor()
             cursor.execute("SELECT user_id, first_name, username FROM users;")
             rows = cursor.fetchall()
@@ -122,7 +145,8 @@ def send_db_file(message):
             return
             
         try:
-            conn = psycopg2.connect(DB_URI)
+            connect_uri = f"{DB_URI}?sslmode=require" if DB_URI and "sslmode" not in DB_URI else DB_URI
+            conn = psycopg2.connect(connect_uri)
             cursor = conn.cursor()
             cursor.execute("SELECT user_id, first_name, username FROM users;")
             rows = cursor.fetchall()
@@ -180,5 +204,9 @@ def callback_back_to_main(call):
 
 if __name__ == '__main__':
     init_db()
+    
+    # Запускаем веб-сервер Flask в отдельном потоке
+    threading.Thread(target=run_flask, daemon=True).start()
+    
     print("Бот успешно запущен на новом хостинге!")
     bot.infinity_polling()
