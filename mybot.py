@@ -19,7 +19,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "Бот работает!"
+    return "Бот работает стабильно!"
 
 def run_web_server():
     port = int(os.environ.get("PORT", 8080))
@@ -66,8 +66,11 @@ def get_users_count():
         result = cursor.fetchone()
         cursor.close()
         conn.close()
-        # ИСПРАВЛЕНО: жестко забираем первый элемент кортежа (индекс 0)
-        return result[0] if result else 0
+        
+        # ЖЕСТКОЕ ИСПРАВЛЕНИЕ: гарантированно извлекаем int число
+        if result and len(result) > 0:
+            return int(result[0])
+        return 0
     except Exception as e:
         print(f"Ошибка при получении количества пользователей: {e}", file=sys.stderr)
         return 0
@@ -143,6 +146,7 @@ def send_db_file(message):
             
             file_buffer.seek(0)
             
+            # Для pyTelegramBotAPI используем безопасную передачу через кортеж
             bot.send_document(
                 message.chat.id, 
                 document=("users.txt", file_buffer, "text/plain"), 
@@ -185,7 +189,12 @@ def callback_back_to_main(call):
 
 if __name__ == '__main__':
     init_db()
+    
     server_thread = threading.Thread(target=run_web_server)
     server_thread.daemon = True
     server_thread.start()
+    
+    try: bot.remove_webhook()
+    except Exception: pass
+        
     bot.infinity_polling()
