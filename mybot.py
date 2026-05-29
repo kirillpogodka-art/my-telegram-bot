@@ -72,7 +72,7 @@ def get_users_count():
         result = cursor.fetchone()
         cursor.close()
         conn.close()
-        # ИСПРАВЛЕНО: возвращаем первый элемент кортежа, а не объект целиком
+        # ИСПРАВЛЕНО: возвращаем число напрямую из кортежа
         return result[0] if result else 0
     except Exception as e:
         print(f"Ошибка при получении количества пользователей: {e}", file=sys.stderr)
@@ -81,7 +81,7 @@ def get_users_count():
 def get_main_menu_keyboard():
     markup = types.InlineKeyboardMarkup(row_width=1)
     site_button = types.InlineKeyboardButton(text="Начать зарабатывать 💰", url="https://taskpay.ru")
-    channel_button = types.InlineKeyboardButton(text="♦️Мой ТГК с Советами♦️", url="https://t.me/+YdiIQ74RknBmYmZi")
+    channel_button = types.InlineKeyboardButton(text="♦️Мой ТГК с Советами♦️", url="https://t.me")
     faq_button = types.InlineKeyboardButton(text="F.A.Q. ❓", callback_data="open_faq")
     markup.add(site_button, channel_button, faq_button)
     return markup
@@ -127,11 +127,6 @@ def show_users_list(message):
 @bot.message_handler(commands=['getfile'])
 def send_db_file(message):
     if message.from_user.id == ADMIN_ID:
-        count = get_users_count()
-        if count == 0:
-            bot.send_message(message.chat.id, "📁 База данных пуста.")
-            return
-        
         try:
             conn = psycopg2.connect(DB_URI)
             cursor = conn.cursor()
@@ -140,6 +135,11 @@ def send_db_file(message):
             cursor.close()
             conn.close()
             
+            if not rows:
+                bot.send_message(message.chat.id, "📁 База данных пуста.")
+                return
+            
+            # ИСПРАВЛЕНО: Правильное формирование бинарного буфера для pyTelegramBotAPI
             file_buffer = io.BytesIO()
             for row in rows:
                 u_id, name, uname = row
@@ -148,9 +148,11 @@ def send_db_file(message):
                 file_buffer.write(line.encode('utf-8'))
             
             file_buffer.seek(0)
-            file_buffer.name = "users.txt"
             
-            bot.send_document(message.chat.id, file_buffer, caption="📁 Полный файл базы данных пользователей (users.txt)")
+            # Передаем объект как полноценный файл с назначенным именем через InputFile
+            input_file = telebot.types.InputFile(file_buffer, filename="users.txt")
+            
+            bot.send_document(message.chat.id, input_file, caption="📁 Полный файл базы данных пользователей")
         except Exception as e:
             bot.send_message(message.chat.id, f"Ошибка при генерации файла: {e}")
 
@@ -190,7 +192,7 @@ if __name__ == '__main__':
     print("Инициализация базы данных...")
     init_db()
     
-    print("Запуск фонового веб-сервера для прохождения проверок Render...")
+    print("Запуск фонового веб-сервера...")
     server_thread = threading.Thread(target=run_web_server)
     server_thread.daemon = True
     server_thread.start()
