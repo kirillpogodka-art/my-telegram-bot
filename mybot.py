@@ -76,7 +76,7 @@ def get_users_count():
         cursor.close()
         conn.close()
         
-        # ТОЧНОЕ ИСПРАВЛЕНИЕ: Извлекаем первый элемент кортежа по индексу [0]
+        # ИСПРАВЛЕНО: берем строго ПЕРВЫЙ элемент кортежа по индексу [0]
         if result and len(result) > 0:
             return int(result[0])
         return 0
