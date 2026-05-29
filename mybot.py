@@ -72,7 +72,7 @@ def get_users_count():
         result = cursor.fetchone()
         cursor.close()
         conn.close()
-        # ИСПРАВЛЕНО: возвращаем число напрямую из кортежа
+        # ИСПРАВЛЕНО: Забираем именно число (первый элемент кортежа)
         return result[0] if result else 0
     except Exception as e:
         print(f"Ошибка при получении количества пользователей: {e}", file=sys.stderr)
@@ -127,6 +127,11 @@ def show_users_list(message):
 @bot.message_handler(commands=['getfile'])
 def send_db_file(message):
     if message.from_user.id == ADMIN_ID:
+        count = get_users_count()
+        if count == 0:
+            bot.send_message(message.chat.id, "📁 База данных пуста.")
+            return
+            
         try:
             conn = psycopg2.connect(DB_URI)
             cursor = conn.cursor()
@@ -135,11 +140,6 @@ def send_db_file(message):
             cursor.close()
             conn.close()
             
-            if not rows:
-                bot.send_message(message.chat.id, "📁 База данных пуста.")
-                return
-            
-            # ИСПРАВЛЕНО: Правильное формирование бинарного буфера для pyTelegramBotAPI
             file_buffer = io.BytesIO()
             for row in rows:
                 u_id, name, uname = row
@@ -149,9 +149,7 @@ def send_db_file(message):
             
             file_buffer.seek(0)
             
-            # Передаем объект как полноценный файл с назначенным именем через InputFile
             input_file = telebot.types.InputFile(file_buffer, filename="users.txt")
-            
             bot.send_document(message.chat.id, input_file, caption="📁 Полный файл базы данных пользователей")
         except Exception as e:
             bot.send_message(message.chat.id, f"Ошибка при генерации файла: {e}")
