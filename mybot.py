@@ -25,7 +25,6 @@ def home():
     return "Бот успешно запущен и работает в бесплатном режиме Web Service!"
 
 def run_web_server():
-    # Render автоматически передает нужный порт в переменную среды PORT
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
@@ -73,6 +72,7 @@ def get_users_count():
         result = cursor.fetchone()
         cursor.close()
         conn.close()
+        # ИСПРАВЛЕНО: возвращаем первый элемент кортежа, а не объект целиком
         return result[0] if result else 0
     except Exception as e:
         print(f"Ошибка при получении количества пользователей: {e}", file=sys.stderr)
@@ -190,12 +190,10 @@ if __name__ == '__main__':
     print("Инициализация базы данных...")
     init_db()
     
-    # 1. Запускаем Flask веб-сервер в фоновом потоке, чтобы Render не ругался на порты
     print("Запуск фонового веб-сервера для прохождения проверок Render...")
     server_thread = threading.Thread(target=run_web_server)
     server_thread.daemon = True
     server_thread.start()
     
-    # 2. В основном потоке запускаем постоянное прослушивание Telegram
     print("Бот успешно запущен и готов принимать команды!")
     bot.infinity_polling()
