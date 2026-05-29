@@ -11,7 +11,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 TOKEN = os.environ.get('TELEGRAM_TOKEN')
-DB_URI = os.environ.get('DATABASE_URL') or "postgresql://postgres.bjrwsrvvyeueawxwbstd:o8llCYjtDOIgRRWL@://supabase.com"
+# Жёстко прописываем ссылку прямо в код, без использования настроек Render
+DB_URI = "postgresql://postgres.bjrwsrvvyeueawxwbstd:o8llCYjtDOIgRRWL@://supabase.com"
 ADMIN_ID = 7048680111
 
 bot = telebot.TeleBot(TOKEN)
