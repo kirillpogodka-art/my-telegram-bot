@@ -1,44 +1,23 @@
 import telebot
 from telebot import types
 import os
-import psycopg2  # Библиотека для работы с PostgreSQL
+import psycopg2
 import io
 import sys
-import threading
-from flask import Flask
-from dotenv import load_dotenv
 
-# Загружаем переменные из .env файла (если запускаем на ПК)
-load_dotenv()
-
-# БЕЗОПАСНОСТЬ: Токен берётся из панели Render
+# БЕЗОПАСНОСТЬ: Чистый забор переменных из панели хостинга
 TOKEN = os.environ.get('TELEGRAM_TOKEN')
+DB_URI = os.environ.get('DATABASE_URL')
 ADMIN_ID = 7048680111
 
-# ЖЁСТКАЯ СТРОКА ПОДКЛЮЧЕНИЯ К SUPABASE IPV4 POOLER (ПОРТ 6543)
-DB_URI = "postgresql://postgres.bjrwsrvvyeueawxwbstd:o8llCYjtDOIgRRWL@://supabase.com"
-
 bot = telebot.TeleBot(TOKEN)
-app = Flask('')
 
-# Простой веб-интерфейс, чтобы Render видел открытый порт и не закрывал приложение
-@app.route('/')
-def home():
-    return "Бот успешно запущен и работает в бесплатном режиме Web Service!"
-
-def run_web_server():
-    port = int(os.environ.get("PORT", 8080))
-    # ВЫКЛЮЧЕН use_reloader, чтобы Flask не создавал дублирующий поток бота
-    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
-
-# Функция инициализации таблицы в базе данных
 def init_db():
     try:
         conn = psycopg2.connect(DB_URI)
         cursor = conn.cursor()
-        # Добавили public.users
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS public.users (
+            CREATE TABLE IF NOT EXISTS users (
                 user_id BIGINT PRIMARY KEY,
                 first_name TEXT,
                 username TEXT
@@ -55,14 +34,11 @@ def save_user_info(user_id, first_name, username):
     try:
         conn = psycopg2.connect(DB_URI)
         cursor = conn.cursor()
-        
-        # Добавили public.users
         cursor.execute("""
-            INSERT INTO public.users (user_id, first_name, username)
+            INSERT INTO users (user_id, first_name, username)
             VALUES (%s, %s, %s)
             ON CONFLICT (user_id) DO NOTHING;
         """, (user_id, first_name, username))
-        
         conn.commit()
         cursor.close()
         conn.close()
@@ -73,15 +49,11 @@ def get_users_count():
     try:
         conn = psycopg2.connect(DB_URI)
         cursor = conn.cursor()
-        # Добавили public.users
-        cursor.execute("SELECT COUNT(*) FROM public.users;")
+        cursor.execute("SELECT COUNT(*) FROM users;")
         result = cursor.fetchone()
         cursor.close()
         conn.close()
-        
-        if result and len(result) > 0:
-            return int(result[0])
-        return 0
+        return result[0] if result else 0
     except Exception as e:
         print(f"Ошибка при получении количества пользователей: {e}", file=sys.stderr)
         return -1
@@ -208,14 +180,5 @@ def callback_back_to_main(call):
 
 if __name__ == '__main__':
     init_db()
-    
-    server_thread = threading.Thread(target=run_web_server)
-    server_thread.daemon = True
-    server_thread.start()
-    
-    try:
-        bot.remove_webhook()
-    except Exception:
-        pass
-        
+    print("Бот успешно запущен на новом хостинге!")
     bot.infinity_polling()
