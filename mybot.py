@@ -10,8 +10,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Загружаем переменные из .env файла (если запускаем на ПК)
+load_dotenv()
+
+# МЫ ПОЛНОСТЬЮ УБРАЛИ os.environ ДЛЯ БАЗЫ ДАННЫХ
 TOKEN = os.environ.get('TELEGRAM_TOKEN')
-# Жёстко прописываем ссылку прямо в код, без использования настроек Render
 DB_URI = "postgresql://postgres.bjrwsrvvyeueawxwbstd:o8llCYjtDOIgRRWL@://supabase.com"
 ADMIN_ID = 7048680111
 
