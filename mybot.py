@@ -36,8 +36,9 @@ def init_db():
     try:
         conn = psycopg2.connect(DB_URI)
         cursor = conn.cursor()
+        # Добавили public.users
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS users (
+            CREATE TABLE IF NOT EXISTS public.users (
                 user_id BIGINT PRIMARY KEY,
                 first_name TEXT,
                 username TEXT
@@ -55,8 +56,9 @@ def save_user_info(user_id, first_name, username):
         conn = psycopg2.connect(DB_URI)
         cursor = conn.cursor()
         
+        # Добавили public.users
         cursor.execute("""
-            INSERT INTO users (user_id, first_name, username)
+            INSERT INTO public.users (user_id, first_name, username)
             VALUES (%s, %s, %s)
             ON CONFLICT (user_id) DO NOTHING;
         """, (user_id, first_name, username))
@@ -71,12 +73,12 @@ def get_users_count():
     try:
         conn = psycopg2.connect(DB_URI)
         cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM users;")
+        # Добавили public.users
+        cursor.execute("SELECT COUNT(*) FROM public.users;")
         result = cursor.fetchone()
         cursor.close()
         conn.close()
         
-        # ИСПРАВЛЕНО: берем строго ПЕРВЫЙ элемент кортежа по индексу [0]
         if result and len(result) > 0:
             return int(result[0])
         return 0
