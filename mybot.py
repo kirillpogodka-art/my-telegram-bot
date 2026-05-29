@@ -69,7 +69,7 @@ def get_users_count():
         
         # ЖЕСТКОЕ ИСПРАВЛЕНИЕ: гарантированно извлекаем int число
         if result and len(result) > 0:
-            return int(result[0])
+    return int(result)  # <--- ЗДЕСЬ СМЕРТЕЛЬНЫЙ БАГ
         return 0
     except Exception as e:
         print(f"Ошибка при получении количества пользователей: {e}", file=sys.stderr)
