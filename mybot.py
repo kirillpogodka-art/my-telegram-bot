@@ -209,4 +209,5 @@ if __name__ == '__main__':
     threading.Thread(target=run_flask, daemon=True).start()
     
     print("Бот успешно запущен на новом хостинге!")
-    bot.infinity_polling()
+    bot.infinity_polling(skip_pending=True)
+
